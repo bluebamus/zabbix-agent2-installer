@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # 갱신한 설정을 적용하고 에이전트를 기동·검증한다
-# 사용법: sudo ./03_deploy/deploy_agent2.sh <에이전트 IP> [conf 경로(기본 02_configure/zabbix_agent2.conf)]
+# 사용법: sudo ./3_deploy/deploy_agent2.sh <에이전트 IP> [conf 경로(기본 2_configure/zabbix_agent2.conf)]
 #   인자가 없으면 에이전트 IP 를 물어본다.
 set -euo pipefail
 
 AGENT_IP=${1:-}
-CONF=${2:-$(dirname "$0")/../02_configure/zabbix_agent2.conf}
+CONF=${2:-$(dirname "$0")/../2_configure/zabbix_agent2.conf}
 [[ -n $AGENT_IP ]] || read -rp "에이전트 IP: " AGENT_IP
 [[ $AGENT_IP =~ ^[A-Za-z0-9.:_-]+$ ]] || { echo "에이전트 IP 형식 오류: '$AGENT_IP'" >&2; exit 1; }
 [[ $EUID -eq 0 ]] || { echo "root 권한이 필요합니다: sudo $0 $*" >&2; exit 1; }

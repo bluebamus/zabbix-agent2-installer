@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # zabbix_agent2.conf 의 Server / ServerActive / Hostname / HostMetadata(선택) 값을 갱신한다 (기본 대상: 이 스크립트 옆의 zabbix_agent2.conf)
 # 사용법:
-#   ./02_configure/configure_agent2.sh Server=10.0.0.10 ServerActive=10.0.0.10:10051 Hostname=mysql-prod-01 HostMetadata=linux,mysql,prod
-#   ./02_configure/configure_agent2.sh -f agent.env            # 파일에 위 항목을 한 줄에 하나씩 KEY=VALUE 형식으로 작성
-#   ./02_configure/configure_agent2.sh                         # 대화형 입력
+#   ./2_configure/configure_agent2.sh Server=10.0.0.10 ServerActive=10.0.0.10:10051 Hostname=mysql-prod-01 HostMetadata=linux,mysql,prod
+#   ./2_configure/configure_agent2.sh -f agent.env            # 파일에 위 항목을 한 줄에 하나씩 KEY=VALUE 형식으로 작성
+#   ./2_configure/configure_agent2.sh                         # 대화형 입력
 #   HostMetadata 는 선택(자동 등록용). 생략하면 기존 값(기본: 주석 처리)을 그대로 둔다.
 #   마지막 인자로 다른 conf 경로를 줄 수 있다:  ... Hostname=web-01 /path/zabbix_agent2.conf
 set -euo pipefail
 
-CONF="$(dirname "$0")/zabbix_agent2.conf"   # 기본: 02_configure/zabbix_agent2.conf
+CONF="$(dirname "$0")/zabbix_agent2.conf"   # 기본: 2_configure/zabbix_agent2.conf
 declare -A V=()
 
 set_kv() {

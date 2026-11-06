@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # WSL(또는 Linux)의 Docker 에서 Ubuntu 26.04 컨테이너를 띄워 세 스크립트를 실제로 실행·검증한다.
-# 사용법: bash 04_test/run_test.sh      (저장소 루트에서)
+# 사용법: bash 4_test/run_test.sh      (저장소 루트에서)
 # 종료 시 컨테이너와 테스트 이미지를 항상 삭제한다.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -16,44 +16,44 @@ fail() { echo "  FAIL: $*" >&2; exit 1; }
 x()    { docker exec -w /opt/installer "$CT" bash -c "$1"; }
 
 echo "== 이미지 빌드 / systemd 컨테이너 기동"
-docker build -q -t "$IMG" 04_test >/dev/null
+docker build -q -t "$IMG" 4_test >/dev/null
 docker run -d --name "$CT" --privileged --cgroupns=host -v /sys/fs/cgroup:/sys/fs/cgroup:rw \
   --tmpfs /run --tmpfs /run/lock "$IMG" >/dev/null
 for _ in $(seq 30); do x 'systemctl is-system-running 2>/dev/null' | grep -qE 'running|degraded' && break; sleep 1; done
 docker exec "$CT" mkdir -p /opt/installer
-tar -c 01_install 02_configure 03_deploy | docker exec -i "$CT" tar -x -C /opt/installer
-x 'chmod +x 0*/*.sh'
+tar -c 1_install 2_configure 3_deploy | docker exec -i "$CT" tar -x -C /opt/installer
+x 'chmod +x [1-4]_*/*.sh'
 AGENT_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$CT")
 x 'grep PRETTY_NAME /etc/os-release'; echo "  에이전트 IP: $AGENT_IP"
 
 echo "== 1. install_agent2.sh"
-x './01_install/install_agent2.sh 7.x' >/dev/null 2>&1 && fail "잘못된 버전 형식을 거부해야 함"; ok "잘못된 버전 형식 거부"
-x './01_install/install_agent2.sh 7.4.15'
+x './1_install/install_agent2.sh 7.x' >/dev/null 2>&1 && fail "잘못된 버전 형식을 거부해야 함"; ok "잘못된 버전 형식 거부"
+x './1_install/install_agent2.sh 7.4.15'
 x 'zabbix_agent2 -V | head -1' | grep -q '7\.4\.15' || fail "7.4.15 고정 설치"; ok "버전 지정(7.4.15) 설치"
-x './01_install/install_agent2.sh'
+x './1_install/install_agent2.sh'
 x 'zabbix_agent2 -V | head -1' | grep -q '7\.4\.16' || fail "기본값 7.4 → 최신 7.4.16"; ok "버전 생략 → 7.4 최신(7.4.16)"
 x 'command -v zabbix_get' >/dev/null || fail "zabbix_get 미설치"; ok "zabbix_get 설치"
 
 echo "== 2. configure_agent2.sh"
-x './02_configure/configure_agent2.sh Server=1.2.3.4 ServerActive=1.2.3.4 "Hostname=bad|name"' >/dev/null 2>&1 && fail "잘못된 Hostname 거부해야 함"; ok "잘못된 Hostname 거부"
-x './02_configure/configure_agent2.sh Server=1.2.3.4 ServerActive=1.2.3.4 Hostname=h "HostMetadata=a|b"' >/dev/null 2>&1 && fail "잘못된 HostMetadata 거부해야 함"; ok "잘못된 HostMetadata 거부"
-x "printf 'HostMetadata=%s\n' \$(printf 'x%.0s' \$(seq 2035)) > /tmp/long.env && ./02_configure/configure_agent2.sh Server=1.2.3.4 ServerActive=1.2.3.4 Hostname=h -f /tmp/long.env" >/dev/null 2>&1 && fail "2034자 초과 HostMetadata 거부해야 함"; ok "2034자 초과 HostMetadata 거부"
+x './2_configure/configure_agent2.sh Server=1.2.3.4 ServerActive=1.2.3.4 "Hostname=bad|name"' >/dev/null 2>&1 && fail "잘못된 Hostname 거부해야 함"; ok "잘못된 Hostname 거부"
+x './2_configure/configure_agent2.sh Server=1.2.3.4 ServerActive=1.2.3.4 Hostname=h "HostMetadata=a|b"' >/dev/null 2>&1 && fail "잘못된 HostMetadata 거부해야 함"; ok "잘못된 HostMetadata 거부"
+x "printf 'HostMetadata=%s\n' \$(printf 'x%.0s' \$(seq 2035)) > /tmp/long.env && ./2_configure/configure_agent2.sh Server=1.2.3.4 ServerActive=1.2.3.4 Hostname=h -f /tmp/long.env" >/dev/null 2>&1 && fail "2034자 초과 HostMetadata 거부해야 함"; ok "2034자 초과 HostMetadata 거부"
 # 사용자 입력 형식 그대로 (4줄, CRLF)
-x "printf 'Server=10.0.0.10\r\nServerActive=10.0.0.10:10051\r\nHostname=mysql-prod-01\r\nHostMetadata=linux,mysql,prod\r\n' > agent.env && cp 02_configure/zabbix_agent2.conf /tmp/f.conf && ./02_configure/configure_agent2.sh -f agent.env /tmp/f.conf"
+x "printf 'Server=10.0.0.10\r\nServerActive=10.0.0.10:10051\r\nHostname=mysql-prod-01\r\nHostMetadata=linux,mysql,prod\r\n' > agent.env && cp 2_configure/zabbix_agent2.conf /tmp/f.conf && ./2_configure/configure_agent2.sh -f agent.env /tmp/f.conf"
 x "grep -qx Server=10.0.0.10 /tmp/f.conf && grep -qx ServerActive=10.0.0.10:10051 /tmp/f.conf && grep -qx Hostname=mysql-prod-01 /tmp/f.conf && grep -qx HostMetadata=linux,mysql,prod /tmp/f.conf && ! grep -q '^# HostMetadata=' /tmp/f.conf" \
   || fail "4줄 파일 입력"; ok "파일 입력 4줄 반영 (HostMetadata 주석 해제)"
-x "printf '%s\n' 10.9.9.9 '' interactive-host | ./02_configure/configure_agent2.sh /tmp/x.conf" >/dev/null 2>&1 && fail "없는 conf 거부해야 함"
-x "cp 02_configure/zabbix_agent2.conf /tmp/i.conf && printf '%s\n' 10.9.9.9 '' interactive-host 'linux,web' | ./02_configure/configure_agent2.sh /tmp/i.conf >/dev/null && grep -qx ServerActive=10.9.9.9 /tmp/i.conf && grep -qx Hostname=interactive-host /tmp/i.conf && grep -qx HostMetadata=linux,web /tmp/i.conf" \
+x "printf '%s\n' 10.9.9.9 '' interactive-host | ./2_configure/configure_agent2.sh /tmp/x.conf" >/dev/null 2>&1 && fail "없는 conf 거부해야 함"
+x "cp 2_configure/zabbix_agent2.conf /tmp/i.conf && printf '%s\n' 10.9.9.9 '' interactive-host 'linux,web' | ./2_configure/configure_agent2.sh /tmp/i.conf >/dev/null && grep -qx ServerActive=10.9.9.9 /tmp/i.conf && grep -qx Hostname=interactive-host /tmp/i.conf && grep -qx HostMetadata=linux,web /tmp/i.conf" \
   || fail "대화형 입력"; ok "대화형 입력(ServerActive 기본값=Server, HostMetadata)"
-x "cp 02_configure/zabbix_agent2.conf /tmp/n.conf && printf '%s\n' 10.9.9.9 '' interactive-host '' | ./02_configure/configure_agent2.sh /tmp/n.conf >/dev/null && grep -qx '# HostMetadata=' /tmp/n.conf && ! grep -q '^HostMetadata=' /tmp/n.conf" \
+x "cp 2_configure/zabbix_agent2.conf /tmp/n.conf && printf '%s\n' 10.9.9.9 '' interactive-host '' | ./2_configure/configure_agent2.sh /tmp/n.conf >/dev/null && grep -qx '# HostMetadata=' /tmp/n.conf && ! grep -q '^HostMetadata=' /tmp/n.conf" \
   || fail "HostMetadata 생략"; ok "대화형에서 HostMetadata 비우면 주석 유지"
-x "./02_configure/configure_agent2.sh Server=$AGENT_IP ServerActive=$AGENT_IP Hostname=$HOSTNAME_UI HostMetadata=linux,mysql,prod" ; ok "인자 입력 반영(HostMetadata 포함)"
+x "./2_configure/configure_agent2.sh Server=$AGENT_IP ServerActive=$AGENT_IP Hostname=$HOSTNAME_UI HostMetadata=linux,mysql,prod" ; ok "인자 입력 반영(HostMetadata 포함)"
 # HostMetadata 없이 인자만 주면 묻지 않고(입력 대기 없이) 기존 값 유지
-x "timeout 5 ./02_configure/configure_agent2.sh Server=$AGENT_IP ServerActive=$AGENT_IP Hostname=$HOSTNAME_UI </dev/null >/dev/null && grep -qx HostMetadata=linux,mysql,prod 02_configure/zabbix_agent2.conf" \
+x "timeout 5 ./2_configure/configure_agent2.sh Server=$AGENT_IP ServerActive=$AGENT_IP Hostname=$HOSTNAME_UI </dev/null >/dev/null && grep -qx HostMetadata=linux,mysql,prod 2_configure/zabbix_agent2.conf" \
   || fail "HostMetadata 생략 시 유지"; ok "HostMetadata 생략 인자 실행 → 입력 대기 없음, 기존 값 유지"
 
 echo "== 3. deploy_agent2.sh $AGENT_IP"
-x "cd /tmp && /opt/installer/03_deploy/deploy_agent2.sh $AGENT_IP"   # 다른 위치에서 실행해도 기본 conf 경로를 찾는지 확인
+x "cd /tmp && /opt/installer/3_deploy/deploy_agent2.sh $AGENT_IP"   # 다른 위치에서 실행해도 기본 conf 경로를 찾는지 확인
 x "grep -qx Server=$AGENT_IP /etc/zabbix/zabbix_agent2.conf && grep -qx Hostname=$HOSTNAME_UI /etc/zabbix/zabbix_agent2.conf && grep -qx HostMetadata=linux,mysql,prod /etc/zabbix/zabbix_agent2.conf" || fail "/etc 설정 반영"; ok "/etc/zabbix/zabbix_agent2.conf 반영"
 [[ $(x 'systemctl is-enabled zabbix-agent2') == enabled ]] || fail "enable"; ok "서비스 enabled"
 [[ $(x 'systemctl is-active zabbix-agent2') == active ]] || fail "active"; ok "서비스 active"

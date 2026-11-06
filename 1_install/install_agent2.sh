@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Zabbix agent2 설치 (Ubuntu, 공식 repo.zabbix.com 저장소)
-# 사용법: sudo ./01_install/install_agent2.sh [버전]
+# 사용법: sudo ./1_install/install_agent2.sh [버전]
 #   버전 생략 → 7.4 (7.4 계열 최신)
 #   7.4.16    → 7.4 저장소에서 정확히 7.4.16 고정 설치
 set -euo pipefail
@@ -41,4 +41,4 @@ echo "[3/3] zabbix-agent2, zabbix-get 설치"
 apt-get install -y -qq --allow-downgrades "zabbix-agent2${PKGVER:+=$PKGVER}" zabbix-get >/dev/null
 
 zabbix_agent2 -V | head -1
-echo "설치 완료. 다음: ./02_configure/configure_agent2.sh Server=<IP> ServerActive=<IP> Hostname=<호스트명>"
+echo "설치 완료. 다음: ./2_configure/configure_agent2.sh Server=<IP> ServerActive=<IP> Hostname=<호스트명>"
