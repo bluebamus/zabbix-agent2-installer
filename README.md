@@ -2,13 +2,31 @@
 
 Ubuntu 26.04 LTS 호스트에 **Zabbix agent2**를 설치하고 Zabbix 서버(7.4.16)에 연동하는 스크립트와 전체 설치 매뉴얼입니다.
 
-| 파일 | 역할 |
-|---|---|
-| `install_agent2.sh [버전]` | 공식 저장소(repo.zabbix.com)를 등록하고 `zabbix-agent2`, `zabbix-get`을 설치합니다. 버전을 생략하면 **7.4**(7.4 계열 최신)를 설치합니다. |
-| `configure_agent2.sh Server=… ServerActive=… Hostname=…` | `./zabbix_agent2.conf`의 세 값을 갱신합니다. 인자, 파일(`-f`), 대화형 입력을 모두 지원합니다. |
-| `deploy_agent2.sh <에이전트 IP>` | 설정 파일을 `/etc/zabbix`에 복사하고 서비스를 enable·restart합니다. 이어서 `zabbix_agent2 -V`와 `zabbix_get … agent.ping`으로 검증합니다. |
-| `zabbix_agent2.conf` | 공식 `zabbix-agent2 7.4.16` 패키지에서 추출한 기본 설정 원본입니다(수정 전 상태). |
-| `test/` | WSL Docker에 Ubuntu 26.04(systemd) 컨테이너를 띄워 위 과정을 자동 검증합니다. |
+폴더 번호가 곧 작업 순서입니다. 모든 명령은 **저장소 루트**에서 실행합니다.
+
+```
+zabbix-agent2-installer/
+├── 01_install/
+│   └── install_agent2.sh        # [1단계] 저장소 등록 + agent2·zabbix-get 설치
+├── 02_configure/
+│   ├── configure_agent2.sh      # [2단계] Server / ServerActive / Hostname 반영
+│   └── zabbix_agent2.conf       #         공식 7.4.16 기본 설정 원본 (이 파일이 갱신됨)
+├── 03_deploy/
+│   └── deploy_agent2.sh         # [3단계] /etc 복사·서비스 기동·agent.ping 검증
+├── 04_test/
+│   ├── Dockerfile               # [4단계] Ubuntu 26.04 + systemd 테스트 이미지
+│   └── run_test.sh              #         WSL Docker 자동 검증
+└── README.md
+```
+
+| 단계 | 파일 | 역할 |
+|---|---|---|
+| 1 | `01_install/install_agent2.sh [버전]` | 공식 저장소(repo.zabbix.com)를 등록하고 `zabbix-agent2`, `zabbix-get`을 설치합니다. 버전을 생략하면 **7.4**(7.4 계열 최신)를 설치합니다. |
+| 2 | `02_configure/configure_agent2.sh Server=… ServerActive=… Hostname=…` | `02_configure/zabbix_agent2.conf`의 세 값을 갱신합니다. 인자, 파일(`-f`), 대화형 입력을 모두 지원합니다. |
+| 3 | `03_deploy/deploy_agent2.sh <에이전트 IP>` | 2단계에서 갱신한 설정 파일을 `/etc/zabbix`에 복사하고 서비스를 enable·restart합니다. 이어서 `zabbix_agent2 -V`와 `zabbix_get … agent.ping`으로 검증합니다. |
+| 4 | `04_test/run_test.sh` | WSL Docker에 Ubuntu 26.04(systemd) 컨테이너를 띄워 1~3단계를 자동 검증합니다. |
+
+스크립트는 자기 위치를 기준으로 설정 파일을 찾으므로, 다른 디렉터리에서 실행해도 기본 경로(`02_configure/zabbix_agent2.conf`)를 사용합니다.
 
 ---
 
@@ -30,24 +48,24 @@ Ubuntu 26.04 LTS 호스트에 **Zabbix agent2**를 설치하고 Zabbix 서버(7.
 
 ```bash
 git clone <이 저장소> zabbix-agent2-installer && cd zabbix-agent2-installer
-chmod +x *.sh
+chmod +x 0*/*.sh
 
-sudo ./install_agent2.sh 7.4.16                       # 버전 생략 시 7.4 최신
-./configure_agent2.sh Server=10.0.0.10 ServerActive=10.0.0.10 Hostname=web-01
-sudo ./deploy_agent2.sh 10.0.0.21                     # 이 호스트(에이전트)의 IP
+sudo ./01_install/install_agent2.sh 7.4.16                       # 버전 생략 시 7.4 최신
+./02_configure/configure_agent2.sh Server=10.0.0.10 ServerActive=10.0.0.10 Hostname=web-01
+sudo ./03_deploy/deploy_agent2.sh 10.0.0.21                     # 이 호스트(에이전트)의 IP
 ```
 
 그다음 [4장](#4-zabbix-웹-ui에-호스트-등록)에 따라 웹 UI에 호스트를 등록합니다.
 
 ## 3. 단계별 설치
 
-### 3.1 설치: `install_agent2.sh`
+### 3.1 [1단계] 설치: `01_install/install_agent2.sh`
 
 ```bash
-sudo ./install_agent2.sh            # 7.4 계열 최신 (현재 7.4.16)
-sudo ./install_agent2.sh 7.4        # 위와 같음
-sudo ./install_agent2.sh 7.4.16     # 정확히 7.4.16 고정 (같은 버전 중 가장 높은 리비전, 예: 1:7.4.16-2)
-sudo ./install_agent2.sh 7.0        # 다른 LTS 계열
+sudo ./01_install/install_agent2.sh            # 7.4 계열 최신 (현재 7.4.16)
+sudo ./01_install/install_agent2.sh 7.4        # 위와 같음
+sudo ./01_install/install_agent2.sh 7.4.16     # 정확히 7.4.16 고정 (같은 버전 중 가장 높은 리비전, 예: 1:7.4.16-2)
+sudo ./01_install/install_agent2.sh 7.0        # 다른 LTS 계열
 ```
 
 스크립트는 다음 순서로 동작합니다.
@@ -66,9 +84,9 @@ sudo dpkg -i zabbix-release_latest_7.4+ubuntu26.04_all.deb
 sudo apt update && sudo apt install -y zabbix-agent2 zabbix-get
 ```
 
-### 3.2 설정값 반영: `configure_agent2.sh`
+### 3.2 [2단계] 설정값 반영: `02_configure/configure_agent2.sh`
 
-`./zabbix_agent2.conf`(공식 기본 설정)의 아래 세 값을 바꿉니다.
+`02_configure/zabbix_agent2.conf`(공식 기본 설정)의 아래 세 값을 바꿉니다.
 
 ```
 Server=<Zabbix 서버 IP>
@@ -79,7 +97,7 @@ Hostname=<웹 UI에 등록할 호스트명>
 입력 방법은 세 가지입니다.
 ```bash
 # ① 인자
-./configure_agent2.sh Server=10.0.0.10 ServerActive=10.0.0.10 Hostname=web-01
+./02_configure/configure_agent2.sh Server=10.0.0.10 ServerActive=10.0.0.10 Hostname=web-01
 
 # ② 파일 (위 형식 그대로, # 주석과 CRLF 허용)
 cat > agent.env <<'EOF'
@@ -87,13 +105,13 @@ Server=10.0.0.10
 ServerActive=10.0.0.10
 Hostname=web-01
 EOF
-./configure_agent2.sh -f agent.env
+./02_configure/configure_agent2.sh -f agent.env
 
 # ③ 대화형 (ServerActive 를 비우면 Server 값을 사용)
-./configure_agent2.sh
+./02_configure/configure_agent2.sh
 
 # 다른 파일을 수정하려면 마지막 인자로 경로를 지정
-./configure_agent2.sh -f agent.env /path/to/zabbix_agent2.conf
+./02_configure/configure_agent2.sh -f agent.env /path/to/zabbix_agent2.conf
 ```
 
 각 값의 의미는 다음과 같습니다.
@@ -106,16 +124,16 @@ EOF
 
 스크립트는 허용되지 않은 문자를 거부합니다. 반영한 뒤에는 각 키가 정확히 한 줄로 들어갔는지 스스로 점검합니다.
 
-### 3.3 적용과 검증: `deploy_agent2.sh`
+### 3.3 [3단계] 적용과 검증: `03_deploy/deploy_agent2.sh`
 
 ```bash
-sudo ./deploy_agent2.sh 10.0.0.21          # 인자 생략 시 IP 를 물어봄
+sudo ./03_deploy/deploy_agent2.sh 10.0.0.21          # 인자 생략 시 IP 를 물어봄
 ```
 
 이 스크립트는 다음 명령을 차례로 실행합니다.
 ```bash
-zabbix_agent2 -T -c ./zabbix_agent2.conf             # 설정 문법 검사 (실패하면 중단, 기존 설정 유지)
-cp ./zabbix_agent2.conf /etc/zabbix/zabbix_agent2.conf   # 기존 파일은 .bak.<시각> 으로 보관
+zabbix_agent2 -T -c 02_configure/zabbix_agent2.conf             # 설정 문법 검사 (실패하면 중단, 기존 설정 유지)
+cp 02_configure/zabbix_agent2.conf /etc/zabbix/zabbix_agent2.conf # 기존 파일은 .bak.<시각> 으로 보관
 sudo systemctl enable --now zabbix-agent2
 sudo systemctl restart zabbix-agent2                 # 이미 실행 중이면 이 단계가 있어야 새 설정이 반영됨
 zabbix_agent2 -V
@@ -139,7 +157,7 @@ zabbix_get -s <에이전트 IP> -k agent.ping            # 결과 1 이면 정�
 
 ## 5. 기본 설정 파일(`zabbix_agent2.conf`)의 출처
 
-저장소의 `zabbix_agent2.conf`는 공식 패키지 `zabbix-agent2 1:7.4.16-2+ubuntu26.04`의 `/etc/zabbix/zabbix_agent2.conf`를 그대로 꺼낸 것입니다. 다시 받거나 다른 버전의 파일이 필요하면 아래 방법 중 하나를 씁니다.
+저장소의 `02_configure/zabbix_agent2.conf`는 공식 패키지 `zabbix-agent2 1:7.4.16-2+ubuntu26.04`의 `/etc/zabbix/zabbix_agent2.conf`를 그대로 꺼낸 것입니다. 다시 받거나 다른 버전의 파일이 필요하면 아래 방법 중 하나를 씁니다.
 
 ```bash
 # A. 패키지에서 추출 (Docker, Ubuntu 26.04 컨테이너)
@@ -148,15 +166,15 @@ docker run --rm ubuntu:26.04 bash -c '
   wget -q https://repo.zabbix.com/zabbix/7.4/release/ubuntu/pool/main/z/zabbix-release/zabbix-release_latest_7.4+ubuntu26.04_all.deb &&
   dpkg -i zabbix-release_*.deb >/dev/null && apt-get update -qq &&
   cd /tmp && apt-get download -qq zabbix-agent2 &&
-  dpkg-deb --fsys-tarfile zabbix-agent2_*.deb | tar -xO ./etc/zabbix/zabbix_agent2.conf' > zabbix_agent2.conf
+  dpkg-deb --fsys-tarfile zabbix-agent2_*.deb | tar -xO ./etc/zabbix/zabbix_agent2.conf' > 02_configure/zabbix_agent2.conf
 
 # B. 공식 agent2 Docker 이미지에서 복사
 #    주의: 이 이미지의 설정은 환경 변수 방식(Include 등)에 맞춰 바뀌어 있어 패키지 원본과 다를 수 있습니다.
 docker create --name zbx-tmp zabbix/zabbix-agent2:ubuntu-7.4-latest
-docker cp zbx-tmp:/etc/zabbix/zabbix_agent2.conf ./zabbix_agent2.conf && docker rm zbx-tmp
+docker cp zbx-tmp:/etc/zabbix/zabbix_agent2.conf ./02_configure/zabbix_agent2.conf && docker rm zbx-tmp
 
 # C. 설치된 호스트라면 그대로 복사
-cp /etc/zabbix/zabbix_agent2.conf ./zabbix_agent2.conf
+cp /etc/zabbix/zabbix_agent2.conf ./02_configure/zabbix_agent2.conf
 ```
 
 설정 레퍼런스: <https://www.zabbix.com/documentation/7.4/en/manual/appendix/config/zabbix_agent2>
@@ -353,7 +371,7 @@ DenyKey=system.run[*]
 | 로그 확인 | `tail -f /var/log/zabbix/zabbix_agent2.log`, `journalctl -u zabbix-agent2 -e` |
 | UserParameter가 *Not supported* | `zabbix_agent2 -t <키>`로 오류를 확인합니다. `zabbix` 사용자 권한과 Timeout을 점검합니다. |
 
-설정을 되돌리려면 `deploy_agent2.sh`가 남긴 `/etc/zabbix/zabbix_agent2.conf.bak.<시각>`을 복원하고 restart합니다.
+설정을 되돌리려면 `03_deploy/deploy_agent2.sh`가 남긴 `/etc/zabbix/zabbix_agent2.conf.bak.<시각>`을 복원하고 restart합니다.
 
 제거 방법은 다음과 같습니다.
 ```bash
@@ -361,17 +379,17 @@ sudo systemctl disable --now zabbix-agent2
 sudo apt purge -y zabbix-agent2 zabbix-get zabbix-release
 ```
 
-## 8. 테스트(WSL Docker)
+## 8. [4단계] 테스트(WSL Docker): `04_test/`
 
 ```bash
 # WSL Ubuntu 에서, 저장소 루트
-bash test/run_test.sh
+bash 04_test/run_test.sh
 ```
 
-`test/Dockerfile`은 systemd가 PID 1인 Ubuntu 26.04 컨테이너를 만듭니다(`--privileged --cgroupns=host`). `run_test.sh`는 그 안에서 다음을 차례로 검증합니다.
+`04_test/Dockerfile`은 systemd가 PID 1인 Ubuntu 26.04 컨테이너를 만듭니다(`--privileged --cgroupns=host`). `run_test.sh`는 그 안에서 다음을 차례로 검증합니다.
 1. 잘못된 버전 형식을 거부하는지, `7.4.15`를 고정 설치할 수 있는지, 버전을 생략하면 7.4 최신(7.4.16)으로 업그레이드되는지, `zabbix_get`이 설치되는지
 2. 잘못된 Hostname을 거부하는지, `-f` 파일 입력(CRLF 포함)·대화형 입력·인자 입력이 반영되는지
-3. `deploy_agent2.sh <컨테이너 IP>`로 `/etc` 반영, enabled·active 상태, `agent.ping = 1`, `agent.hostname` 일치, 백업 파일 생성을 확인하는지
+3. `/tmp`(다른 위치)에서 `03_deploy/deploy_agent2.sh <컨테이너 IP>`를 실행해 `/etc` 반영, enabled·active 상태, `agent.ping = 1`, `agent.hostname` 일치, 백업 파일 생성을 확인하는지
 4. 6.1의 UserParameter(`custom.echo[*]`, JSON 반환)를 `zabbix_get`과 `zabbix_agent2 -t`로 조회할 수 있는지
 
 테스트가 끝나거나 실패하면 trap이 컨테이너와 테스트 이미지를 **항상 삭제**합니다.

@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# zabbix_agent2.conf 의 Server / ServerActive / Hostname 값을 갱신한다 (기본 대상: ./zabbix_agent2.conf)
+# zabbix_agent2.conf 의 Server / ServerActive / Hostname 값을 갱신한다 (기본 대상: 이 스크립트 옆의 zabbix_agent2.conf)
 # 사용법:
-#   ./configure_agent2.sh Server=10.0.0.10 ServerActive=10.0.0.10 Hostname=web-01
-#   ./configure_agent2.sh -f agent.env            # 파일에 위 3줄을 KEY=VALUE 형식으로 작성
-#   ./configure_agent2.sh                         # 대화형 입력
+#   ./02_configure/configure_agent2.sh Server=10.0.0.10 ServerActive=10.0.0.10 Hostname=web-01
+#   ./02_configure/configure_agent2.sh -f agent.env            # 파일에 위 3줄을 KEY=VALUE 형식으로 작성
+#   ./02_configure/configure_agent2.sh                         # 대화형 입력
 #   마지막 인자로 다른 conf 경로를 줄 수 있다:  ... Hostname=web-01 /path/zabbix_agent2.conf
 set -euo pipefail
 
-CONF="./zabbix_agent2.conf"
+CONF="$(dirname "$0")/zabbix_agent2.conf"   # 기본: 02_configure/zabbix_agent2.conf
 declare -A V=()
 
 set_kv() {
