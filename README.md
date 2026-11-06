@@ -9,7 +9,7 @@ zabbix-agent2-installer/
 ├── 01_install/
 │   └── install_agent2.sh        # [1단계] 저장소 등록 + agent2·zabbix-get 설치
 ├── 02_configure/
-│   ├── configure_agent2.sh      # [2단계] Server / ServerActive / Hostname 반영
+│   ├── configure_agent2.sh      # [2단계] Server / ServerActive / Hostname / HostMetadata(선택) 반영
 │   └── zabbix_agent2.conf       #         공식 7.4.16 기본 설정 원본 (이 파일이 갱신됨)
 ├── 03_deploy/
 │   └── deploy_agent2.sh         # [3단계] /etc 복사·서비스 기동·agent.ping 검증
@@ -22,7 +22,7 @@ zabbix-agent2-installer/
 | 단계 | 파일 | 역할 |
 |---|---|---|
 | 1 | `01_install/install_agent2.sh [버전]` | 공식 저장소(repo.zabbix.com)를 등록하고 `zabbix-agent2`, `zabbix-get`을 설치합니다. 버전을 생략하면 **7.4**(7.4 계열 최신)를 설치합니다. |
-| 2 | `02_configure/configure_agent2.sh Server=… ServerActive=… Hostname=…` | `02_configure/zabbix_agent2.conf`의 세 값을 갱신합니다. 인자, 파일(`-f`), 대화형 입력을 모두 지원합니다. |
+| 2 | `02_configure/configure_agent2.sh Server=… ServerActive=… Hostname=… [HostMetadata=…]` | `02_configure/zabbix_agent2.conf`의 값을 갱신합니다(`HostMetadata`는 선택). 인자, 파일(`-f`), 대화형 입력을 모두 지원합니다. |
 | 3 | `03_deploy/deploy_agent2.sh <에이전트 IP>` | 2단계에서 갱신한 설정 파일을 `/etc/zabbix`에 복사하고 서비스를 enable·restart합니다. 이어서 `zabbix_agent2 -V`와 `zabbix_get … agent.ping`으로 검증합니다. |
 | 4 | `04_test/run_test.sh` | WSL Docker에 Ubuntu 26.04(systemd) 컨테이너를 띄워 1~3단계를 자동 검증합니다. |
 
@@ -51,7 +51,7 @@ git clone <이 저장소> zabbix-agent2-installer && cd zabbix-agent2-installer
 chmod +x 0*/*.sh
 
 sudo ./01_install/install_agent2.sh 7.4.16                       # 버전 생략 시 7.4 최신
-./02_configure/configure_agent2.sh Server=10.0.0.10 ServerActive=10.0.0.10 Hostname=web-01
+./02_configure/configure_agent2.sh Server=10.0.0.10 ServerActive=10.0.0.10:10051 Hostname=mysql-prod-01 HostMetadata=linux,mysql,prod
 sudo ./03_deploy/deploy_agent2.sh 10.0.0.21                     # 이 호스트(에이전트)의 IP
 ```
 
@@ -86,28 +86,31 @@ sudo apt update && sudo apt install -y zabbix-agent2 zabbix-get
 
 ### 3.2 [2단계] 설정값 반영: `02_configure/configure_agent2.sh`
 
-`02_configure/zabbix_agent2.conf`(공식 기본 설정)의 아래 세 값을 바꿉니다.
+`02_configure/zabbix_agent2.conf`(공식 기본 설정)의 아래 값을 바꿉니다. `HostMetadata`는 **선택** 항목입니다.
 
 ```
 Server=<Zabbix 서버 IP>
-ServerActive=<Zabbix 서버 IP>
+ServerActive=<Zabbix 서버 IP>[:포트]
 Hostname=<웹 UI에 등록할 호스트명>
+HostMetadata=<자동 등록용 메타데이터>      # 선택
 ```
 
 입력 방법은 세 가지입니다.
 ```bash
 # ① 인자
-./02_configure/configure_agent2.sh Server=10.0.0.10 ServerActive=10.0.0.10 Hostname=web-01
+./02_configure/configure_agent2.sh Server=10.0.0.10 ServerActive=10.0.0.10:10051 \
+    Hostname=mysql-prod-01 HostMetadata=linux,mysql,prod
 
 # ② 파일 (위 형식 그대로, # 주석과 CRLF 허용)
 cat > agent.env <<'EOF'
 Server=10.0.0.10
-ServerActive=10.0.0.10
-Hostname=web-01
+ServerActive=10.0.0.10:10051
+Hostname=mysql-prod-01
+HostMetadata=linux,mysql,prod
 EOF
 ./02_configure/configure_agent2.sh -f agent.env
 
-# ③ 대화형 (ServerActive 를 비우면 Server 값을 사용)
+# ③ 대화형 (ServerActive 를 비우면 Server 값을 사용, HostMetadata 를 비우면 생략)
 ./02_configure/configure_agent2.sh
 
 # 다른 파일을 수정하려면 마지막 인자로 경로를 지정
@@ -120,9 +123,15 @@ EOF
 |---|---|---|
 | `Server` | 패시브 체크를 **요청할 수 있는** 서버·프록시 IP 목록입니다(허용 목록). 쉼표로 구분하고 CIDR도 쓸 수 있습니다. | `10.0.0.10`, `10.0.0.10,10.0.0.0/24` |
 | `ServerActive` | 액티브 체크를 위해 에이전트가 **접속할** 서버 주소입니다. `host:port` 형식을 쓸 수 있고, HA 클러스터 노드는 `;`로 구분합니다. | `10.0.0.10`, `10.0.0.10:10051`, `zbx1;zbx2` |
-| `Hostname` | 웹 UI의 **Host name**과 **글자 하나까지 같아야** 합니다. 대소문자도 구분합니다. 영문·숫자·공백·`.` `_` `-`만 쓸 수 있고 128자 이하여야 합니다. | `web-01` |
+| `Hostname` | 웹 UI의 **Host name**과 **글자 하나까지 같아야** 합니다. 대소문자도 구분합니다. 영문·숫자·공백·`.` `_` `-`만 쓸 수 있고 128자 이하여야 합니다. | `mysql-prod-01` |
+| `HostMetadata` (선택) | [자동 등록](#68-hostmetadata--자동-등록autoregistration) 때 서버로 보내는 문자열입니다. 서버의 자동 등록 Action이 이 값의 포함 여부로 그룹·템플릿을 정합니다. 영문·숫자·공백·`.` `,` `:` `;` `_` `=` `@` `/` `-`만 쓸 수 있고 2034자 이하여야 합니다. | `linux,mysql,prod` |
 
-스크립트는 허용되지 않은 문자를 거부합니다. 반영한 뒤에는 각 키가 정확히 한 줄로 들어갔는지 스스로 점검합니다.
+스크립트는 허용되지 않은 문자를 거부합니다. 반영한 뒤에는 입력한 각 키가 정확히 한 줄로 들어갔는지 스스로 점검합니다.
+
+`HostMetadata`는 이렇게 동작합니다.
+- 기본 설정 파일에는 `# HostMetadata=`로 주석 처리되어 있습니다. 값을 주면 주석이 풀리면서 `HostMetadata=<값>`이 됩니다.
+- 인자나 파일에서 이 항목을 빼면 기존 값을 그대로 둡니다. 그래서 다른 값만 고칠 때 이전 메타데이터가 지워지지 않습니다.
+- 질문을 거쳐 값을 받는 것은 **아무 인자도 없이 실행한 대화형 모드**일 때뿐입니다. 일부 값만 인자로 준 자동화 실행은 입력을 기다리며 멈추지 않습니다.
 
 ### 3.3 [3단계] 적용과 검증: `03_deploy/deploy_agent2.sh`
 
@@ -330,14 +339,28 @@ DB 계정에는 모니터링에 필요한 **최소 권한**만 줍니다.
 ### 6.8 HostMetadata + 자동 등록(Autoregistration)
 
 에이전트가 처음 접속할 때 메타데이터를 보내면, 서버가 자동으로 호스트를 만들고 템플릿·그룹을 연결합니다.
+
+**1) 에이전트에 메타데이터를 넣습니다.** 2단계 스크립트로 바로 넣을 수 있습니다.
+```bash
+./02_configure/configure_agent2.sh Server=10.0.0.10 ServerActive=10.0.0.10:10051 \
+    Hostname=mysql-prod-01 HostMetadata=linux,mysql,prod
+sudo ./03_deploy/deploy_agent2.sh <에이전트 IP>
 ```
-# /etc/zabbix/zabbix_agent2.d/autoreg.conf
-HostMetadata=linux web prod
-# 또는 명령 결과로: HostMetadataItem=system.uname
-```
-웹 UI에서 **Alerts → Actions → Autoregistration actions → Create action**을 열고 다음과 같이 설정합니다.
-- Conditions: `Host metadata` *contains* `web`
-- Operations: `Add host`, `Add to host groups: Web servers`, `Link templates: Linux by Zabbix agent active`, 필요하면 `Add host tags`
+고정 문자열 대신 명령 결과를 보내려면 `HostMetadataItem=system.uname`을 씁니다. `HostMetadata`가 비어 있을 때만 사용됩니다.
+
+> 같은 키를 메인 설정과 `zabbix_agent2.d/*.conf`에 **함께 넣지 마세요.** 한쪽에서만 정의합니다.
+
+**2) 서버에 자동 등록 Action을 만듭니다.** 웹 UI에서 **Alerts → Actions → Autoregistration actions → Create action**을 열고, 메타데이터의 각 단어마다 Action을 하나씩 만들면 역할별로 따로 처리됩니다.
+
+| Action | Conditions | Operations |
+|---|---|---|
+| Linux 공통 | `Host metadata` *contains* `linux` | `Add host`, `Add to host groups: Linux servers`, `Link templates: Linux by Zabbix agent active` |
+| MySQL | `Host metadata` *contains* `mysql` | `Add to host groups: Databases`, `Link templates: MySQL by Zabbix agent 2` |
+| 운영 환경 | `Host metadata` *contains* `prod` | `Add host tags: env=prod` (필요하면 알림 대상 그룹 연결) |
+
+`linux,mysql,prod`를 보낸 `mysql-prod-01`에는 세 Action이 모두 적용됩니다. 그 결과 호스트가 만들어지고 Linux와 MySQL 템플릿, `env=prod` 태그가 붙습니다. MySQL 템플릿은 접속용 호스트 매크로(`{$MYSQL.DSN}` 등, 6.7)를 따로 넣어야 값을 수집합니다.
+
+메타데이터에 `mysql`과 `mysql8`처럼 서로를 포함하는 단어가 있으면 *contains* 조건이 둘 다에 걸립니다. 이럴 때는 단어를 겹치지 않게 짓거나 *matches* 정규식 조건(예: `(^|,)mysql(,|$)`)을 씁니다.
 
 이 방식은 `ServerActive`와 `Hostname`이 설정되어 있어야 동작합니다. 대량 배포할 때 웹 UI에서 호스트를 하나씩 등록하는 수고를 덜어 줍니다.
 
@@ -388,8 +411,8 @@ bash 04_test/run_test.sh
 
 `04_test/Dockerfile`은 systemd가 PID 1인 Ubuntu 26.04 컨테이너를 만듭니다(`--privileged --cgroupns=host`). `run_test.sh`는 그 안에서 다음을 차례로 검증합니다.
 1. 잘못된 버전 형식을 거부하는지, `7.4.15`를 고정 설치할 수 있는지, 버전을 생략하면 7.4 최신(7.4.16)으로 업그레이드되는지, `zabbix_get`이 설치되는지
-2. 잘못된 Hostname을 거부하는지, `-f` 파일 입력(CRLF 포함)·대화형 입력·인자 입력이 반영되는지
-3. `/tmp`(다른 위치)에서 `03_deploy/deploy_agent2.sh <컨테이너 IP>`를 실행해 `/etc` 반영, enabled·active 상태, `agent.ping = 1`, `agent.hostname` 일치, 백업 파일 생성을 확인하는지
+2. 잘못된 Hostname·HostMetadata(허용되지 않은 문자, 2034자 초과)를 거부하는지, 4줄 입력(`Server`/`ServerActive`/`Hostname`/`HostMetadata`)이 `-f` 파일 입력(CRLF 포함)·대화형 입력·인자 입력으로 반영되는지, HostMetadata를 생략했을 때 입력 대기 없이 기존 값을 유지하는지
+3. `/tmp`(다른 위치)에서 `03_deploy/deploy_agent2.sh <컨테이너 IP>`를 실행해 `/etc` 반영(HostMetadata 포함), enabled·active 상태, `agent.ping = 1`, `agent.hostname` 일치, 백업 파일 생성을 확인하는지
 4. 6.1의 UserParameter(`custom.echo[*]`, JSON 반환)를 `zabbix_get`과 `zabbix_agent2 -t`로 조회할 수 있는지
 
 테스트가 끝나거나 실패하면 trap이 컨테이너와 테스트 이미지를 **항상 삭제**합니다.

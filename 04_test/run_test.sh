@@ -36,15 +36,25 @@ x 'command -v zabbix_get' >/dev/null || fail "zabbix_get 미설치"; ok "zabbix_
 
 echo "== 2. configure_agent2.sh"
 x './02_configure/configure_agent2.sh Server=1.2.3.4 ServerActive=1.2.3.4 "Hostname=bad|name"' >/dev/null 2>&1 && fail "잘못된 Hostname 거부해야 함"; ok "잘못된 Hostname 거부"
-x "printf 'Server=$AGENT_IP\r\nServerActive=$AGENT_IP:10051\r\nHostname=$HOSTNAME_UI\r\n' > agent.env && ./02_configure/configure_agent2.sh -f agent.env"
+x './02_configure/configure_agent2.sh Server=1.2.3.4 ServerActive=1.2.3.4 Hostname=h "HostMetadata=a|b"' >/dev/null 2>&1 && fail "잘못된 HostMetadata 거부해야 함"; ok "잘못된 HostMetadata 거부"
+x "printf 'HostMetadata=%s\n' \$(printf 'x%.0s' \$(seq 2035)) > /tmp/long.env && ./02_configure/configure_agent2.sh Server=1.2.3.4 ServerActive=1.2.3.4 Hostname=h -f /tmp/long.env" >/dev/null 2>&1 && fail "2034자 초과 HostMetadata 거부해야 함"; ok "2034자 초과 HostMetadata 거부"
+# 사용자 입력 형식 그대로 (4줄, CRLF)
+x "printf 'Server=10.0.0.10\r\nServerActive=10.0.0.10:10051\r\nHostname=mysql-prod-01\r\nHostMetadata=linux,mysql,prod\r\n' > agent.env && cp 02_configure/zabbix_agent2.conf /tmp/f.conf && ./02_configure/configure_agent2.sh -f agent.env /tmp/f.conf"
+x "grep -qx Server=10.0.0.10 /tmp/f.conf && grep -qx ServerActive=10.0.0.10:10051 /tmp/f.conf && grep -qx Hostname=mysql-prod-01 /tmp/f.conf && grep -qx HostMetadata=linux,mysql,prod /tmp/f.conf && ! grep -q '^# HostMetadata=' /tmp/f.conf" \
+  || fail "4줄 파일 입력"; ok "파일 입력 4줄 반영 (HostMetadata 주석 해제)"
 x "printf '%s\n' 10.9.9.9 '' interactive-host | ./02_configure/configure_agent2.sh /tmp/x.conf" >/dev/null 2>&1 && fail "없는 conf 거부해야 함"
-x "cp 02_configure/zabbix_agent2.conf /tmp/i.conf && printf '%s\n' 10.9.9.9 '' interactive-host | ./02_configure/configure_agent2.sh /tmp/i.conf >/dev/null && grep -qx ServerActive=10.9.9.9 /tmp/i.conf && grep -qx Hostname=interactive-host /tmp/i.conf" \
-  || fail "대화형 입력"; ok "대화형 입력(ServerActive 기본값=Server)"
-x "./02_configure/configure_agent2.sh Server=$AGENT_IP ServerActive=$AGENT_IP Hostname=$HOSTNAME_UI" ; ok "인자 입력 반영"
+x "cp 02_configure/zabbix_agent2.conf /tmp/i.conf && printf '%s\n' 10.9.9.9 '' interactive-host 'linux,web' | ./02_configure/configure_agent2.sh /tmp/i.conf >/dev/null && grep -qx ServerActive=10.9.9.9 /tmp/i.conf && grep -qx Hostname=interactive-host /tmp/i.conf && grep -qx HostMetadata=linux,web /tmp/i.conf" \
+  || fail "대화형 입력"; ok "대화형 입력(ServerActive 기본값=Server, HostMetadata)"
+x "cp 02_configure/zabbix_agent2.conf /tmp/n.conf && printf '%s\n' 10.9.9.9 '' interactive-host '' | ./02_configure/configure_agent2.sh /tmp/n.conf >/dev/null && grep -qx '# HostMetadata=' /tmp/n.conf && ! grep -q '^HostMetadata=' /tmp/n.conf" \
+  || fail "HostMetadata 생략"; ok "대화형에서 HostMetadata 비우면 주석 유지"
+x "./02_configure/configure_agent2.sh Server=$AGENT_IP ServerActive=$AGENT_IP Hostname=$HOSTNAME_UI HostMetadata=linux,mysql,prod" ; ok "인자 입력 반영(HostMetadata 포함)"
+# HostMetadata 없이 인자만 주면 묻지 않고(입력 대기 없이) 기존 값 유지
+x "timeout 5 ./02_configure/configure_agent2.sh Server=$AGENT_IP ServerActive=$AGENT_IP Hostname=$HOSTNAME_UI </dev/null >/dev/null && grep -qx HostMetadata=linux,mysql,prod 02_configure/zabbix_agent2.conf" \
+  || fail "HostMetadata 생략 시 유지"; ok "HostMetadata 생략 인자 실행 → 입력 대기 없음, 기존 값 유지"
 
 echo "== 3. deploy_agent2.sh $AGENT_IP"
 x "cd /tmp && /opt/installer/03_deploy/deploy_agent2.sh $AGENT_IP"   # 다른 위치에서 실행해도 기본 conf 경로를 찾는지 확인
-x "grep -qx Server=$AGENT_IP /etc/zabbix/zabbix_agent2.conf && grep -qx Hostname=$HOSTNAME_UI /etc/zabbix/zabbix_agent2.conf" || fail "/etc 설정 반영"; ok "/etc/zabbix/zabbix_agent2.conf 반영"
+x "grep -qx Server=$AGENT_IP /etc/zabbix/zabbix_agent2.conf && grep -qx Hostname=$HOSTNAME_UI /etc/zabbix/zabbix_agent2.conf && grep -qx HostMetadata=linux,mysql,prod /etc/zabbix/zabbix_agent2.conf" || fail "/etc 설정 반영"; ok "/etc/zabbix/zabbix_agent2.conf 반영"
 [[ $(x 'systemctl is-enabled zabbix-agent2') == enabled ]] || fail "enable"; ok "서비스 enabled"
 [[ $(x 'systemctl is-active zabbix-agent2') == active ]] || fail "active"; ok "서비스 active"
 [[ $(x "zabbix_get -s $AGENT_IP -k agent.hostname") == "$HOSTNAME_UI" ]] || fail "agent.hostname"; ok "agent.hostname = $HOSTNAME_UI"
